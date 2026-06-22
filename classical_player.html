@@ -419,6 +419,12 @@ h1 {
     <div id="audioStatus" style="font-family: monospace; font-size: 0.8rem; color: #888; text-align: center; margin-top: 6px;">Loading...</div>
   </div>
 
+  <!-- Local File Drop (enables visualizer without permissions) -->
+  <div id="fileDropZone" style="background: linear-gradient(135deg, rgba(156,39,176,0.1), rgba(103,58,183,0.1)); border: 2px dashed rgba(156,39,176,0.4); border-radius: 12px; padding: 12px; margin-bottom: 15px; text-align: center; cursor: pointer; transition: all 0.3s;">
+    <input type="file" id="localFileInput" accept="audio/*" style="display: none;">
+    <span style="color: #CE93D8; font-size: 0.9rem;">Drop audio file here or <strong>click to choose</strong> — enables visualizer</span>
+  </div>
+
   <!-- Skip Controls -->
   <div class="skip-controls">
     <span class="skip-label">Skip:</span>
@@ -530,6 +536,7 @@ h1 {
   let allTrackItems = [];   // includes headers for display
   let lastHighlightedIndex = -1;
   let currentBlobUrl = null;
+  let isLocalFile = false;
 
   // Fetch and initialize from playlists.json
   async function init() {
@@ -586,51 +593,31 @@ h1 {
       currentBlobUrl = null;
     }
 
+    isLocalFile = false;
     nowPlaying.textContent = 'Now Playing: ' + entry.name;
-    audioStatus.textContent = 'Downloading...';
+    audioStatus.textContent = 'Loading via proxy...';
     audioStatus.style.color = '#FFC107';
 
-    // Download audio via proxy to avoid CORS issues (enables visualizer)
+    // Try proxy first (works for small files, enables visualizer via blob)
     fetch('/api/proxy?url=' + encodeURIComponent(entry.url)).then(resp => {
-      if (!resp.ok) throw new Error('Download failed');
-      const contentLength = resp.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength) : 0;
-      let loaded = 0;
-      const reader = resp.body.getReader();
-      const chunks = [];
-
-      function pump() {
-        return reader.read().then(({ done, value }) => {
-          if (done) return new Blob(chunks);
-          chunks.push(value);
-          loaded += value.length;
-          if (total) {
-            const pct = Math.round((loaded / total) * 100);
-            const mb = (loaded / 1048576).toFixed(1);
-            const totalMb = (total / 1048576).toFixed(1);
-            audioStatus.textContent = `Downloading... ${mb}/${totalMb} MB (${pct}%)`;
-          } else {
-            audioStatus.textContent = `Downloading... ${(loaded / 1048576).toFixed(1)} MB`;
-          }
-          return pump();
-        });
-      }
-
-      return pump();
+      if (!resp.ok) throw new Error('Proxy failed');
+      return resp.blob();
     }).then(blob => {
       currentBlobUrl = URL.createObjectURL(blob);
       audio.src = currentBlobUrl;
       audio.load();
       audio.play().catch(e => console.warn('Autoplay blocked:', e));
-      audioStatus.textContent = 'Ready';
+      isLocalFile = true; // blob URL — visualizer works directly
+      audioStatus.textContent = 'Ready (visualizer enabled)';
       audioStatus.style.color = '#8BC34A';
     }).catch(e => {
-      console.error('Download error:', e);
-      // Fallback to direct URL
+      // Fallback to direct streaming for large files
+      console.warn('Proxy fallback:', e);
       audio.src = entry.url;
       audio.load();
       audio.play().catch(e => console.warn('Autoplay blocked:', e));
-      audioStatus.textContent = 'Streaming (visualizer unavailable)';
+      isLocalFile = false;
+      audioStatus.textContent = 'Streaming — use file drop or tab capture for visualizer';
       audioStatus.style.color = '#FF9800';
     });
     tracklistHeader.textContent = entry.name + (tracklist.length ? ' — Click a time to jump' : '');
@@ -1048,37 +1035,10 @@ h1 {
     let vizAnalyser = null;
     let vizAnimId = null;
     let vizSourceConnected = false;
+    let vizStream = null;
+    let vizMode = null; // 'local' or 'capture'
 
-    window.toggleVisualizer = function() {
-      const overlay = document.getElementById('visualizerOverlay');
-      const btn = document.getElementById('visualizerBtn');
-      const canvas = document.getElementById('visualizerCanvas');
-
-      if (vizActive) {
-        vizActive = false;
-        overlay.classList.remove('active');
-        btn.style.background = 'linear-gradient(45deg, #9C27B0, #7B1FA2)';
-        if (vizAnimId) cancelAnimationFrame(vizAnimId);
-        return;
-      }
-
-      vizActive = true;
-      overlay.classList.add('active');
-      btn.style.background = 'linear-gradient(45deg, #f44336, #d32f2f)';
-
-      // Set up Web Audio (only once — createMediaElementSource can only be called once per element)
-      if (!vizSourceConnected) {
-        vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const source = vizAudioCtx.createMediaElementSource(audio);
-        vizAnalyser = vizAudioCtx.createAnalyser();
-        vizAnalyser.fftSize = 256;
-        source.connect(vizAnalyser);
-        vizAnalyser.connect(vizAudioCtx.destination);
-        vizSourceConnected = true;
-      }
-
-      if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume();
-
+    function startRender(canvas) {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       const ctx = canvas.getContext('2d');
@@ -1109,16 +1069,128 @@ h1 {
           x += barWidth + 1;
         }
       }
-
       renderFrame();
+    }
 
-      window.addEventListener('resize', function() {
-        if (vizActive) {
-          canvas.width = window.innerWidth;
-          canvas.height = window.innerHeight;
+    function stopViz() {
+      vizActive = false;
+      document.getElementById('visualizerOverlay').classList.remove('active');
+      document.getElementById('visualizerBtn').style.background = 'linear-gradient(45deg, #9C27B0, #7B1FA2)';
+      if (vizAnimId) cancelAnimationFrame(vizAnimId);
+      // Clean up capture stream if used
+      if (vizMode === 'capture' && vizStream) {
+        vizStream.getTracks().forEach(t => t.stop());
+        vizStream = null;
+        if (vizAudioCtx) { vizAudioCtx.close(); vizAudioCtx = null; }
+        vizAnalyser = null;
+      }
+      vizMode = null;
+    }
+
+    window.toggleVisualizer = async function() {
+      const overlay = document.getElementById('visualizerOverlay');
+      const btn = document.getElementById('visualizerBtn');
+      const canvas = document.getElementById('visualizerCanvas');
+
+      if (vizActive) { stopViz(); return; }
+
+      if (isLocalFile) {
+        // Local file or blob URL — use createMediaElementSource (no prompt)
+        if (!vizSourceConnected) {
+          vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const source = vizAudioCtx.createMediaElementSource(audio);
+          vizAnalyser = vizAudioCtx.createAnalyser();
+          vizAnalyser.fftSize = 256;
+          source.connect(vizAnalyser);
+          vizAnalyser.connect(vizAudioCtx.destination);
+          vizSourceConnected = true;
         }
-      });
+        if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume();
+        vizMode = 'local';
+      } else {
+        // Streaming from Dropbox — use tab capture
+        try {
+          vizStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+          vizStream.getVideoTracks().forEach(t => t.stop());
+          const audioTracks = vizStream.getAudioTracks();
+          if (!audioTracks.length) {
+            alert('No audio captured. Make sure to check "Share tab audio".');
+            vizStream.getTracks().forEach(t => t.stop());
+            vizStream = null;
+            return;
+          }
+          vizAudioCtx = new AudioContext();
+          const source = vizAudioCtx.createMediaStreamSource(vizStream);
+          vizAnalyser = vizAudioCtx.createAnalyser();
+          vizAnalyser.fftSize = 256;
+          source.connect(vizAnalyser);
+          vizMode = 'capture';
+
+          audioTracks[0].onended = function() { if (vizActive) stopViz(); };
+        } catch (e) {
+          console.warn('Visualizer capture error:', e);
+          return;
+        }
+      }
+
+      vizActive = true;
+      overlay.classList.add('active');
+      btn.style.background = 'linear-gradient(45deg, #f44336, #d32f2f)';
+      startRender(canvas);
     };
+
+    window.addEventListener('resize', function() {
+      if (vizActive) {
+        const c = document.getElementById('visualizerCanvas');
+        c.width = window.innerWidth;
+        c.height = window.innerHeight;
+      }
+    });
+  })();
+
+  // ============ LOCAL FILE DROP / CHOOSE ============
+  (function() {
+    const dropZone = document.getElementById('fileDropZone');
+    const fileInput = document.getElementById('localFileInput');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#CE93D8';
+      dropZone.style.background = 'rgba(156,39,176,0.2)';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.borderColor = 'rgba(156,39,176,0.4)';
+      dropZone.style.background = '';
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'rgba(156,39,176,0.4)';
+      dropZone.style.background = '';
+      const file = e.dataTransfer.files[0];
+      if (file) loadLocalFile(file);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) loadLocalFile(fileInput.files[0]);
+    });
+
+    function loadLocalFile(file) {
+      if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+      currentBlobUrl = URL.createObjectURL(file);
+      audio.src = currentBlobUrl;
+      audio.load();
+      audio.play().catch(e => console.warn('Autoplay blocked:', e));
+      isLocalFile = true;
+
+      const name = file.name.replace(/\.\w+$/, '').replace(/[-_]/g, ' ');
+      nowPlaying.textContent = 'Now Playing: ' + name;
+      audioStatus.textContent = 'Local file — visualizer enabled';
+      audioStatus.style.color = '#8BC34A';
+    }
   })();
 
   // init() is called after access code is verified
