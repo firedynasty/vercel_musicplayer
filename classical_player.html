@@ -376,6 +376,17 @@ h1 {
   <h1>Classical Music Player</h1>
   <p class="subtitle">Streaming from Dropbox</p>
 
+  <!-- Access Code Gate -->
+  <div id="accessGate" class="album-selector" style="text-align: center;">
+    <label for="accessInput" style="color: #CE93D8; font-weight: 600;">Enter Access Code:</label>
+    <input type="password" id="accessInput" style="background: #1a1a1a; color: #E0E0E0; border: 2px solid rgba(156,39,176,0.4); border-radius: 8px; padding: 8px 12px; font-size: 1rem; font-family: monospace; margin: 0 10px; width: 200px;" placeholder="Access code">
+    <button id="accessBtn" class="jump-btn" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); padding: 8px 16px; font-size: 0.9rem;">Unlock</button>
+    <div id="accessError" style="color: #f44336; font-size: 0.85rem; margin-top: 8px;"></div>
+  </div>
+
+  <!-- Hidden until access code entered -->
+  <div id="playerContent" style="display: none;">
+
   <!-- Genre + Album Selectors -->
   <div class="album-selector">
     <label for="genreSelect">Genre:</label>
@@ -437,9 +448,53 @@ h1 {
     <div class="tracklist-header" id="tracklistHeader">Tracklist</div>
     <div class="tracklist-scroll" id="tracklistScroll"></div>
   </div>
+
+  </div><!-- end playerContent -->
 </div>
 
 <script>
+  // ============ ACCESS CODE GATE ============
+  const accessGate = document.getElementById('accessGate');
+  const playerContent = document.getElementById('playerContent');
+  const accessInput = document.getElementById('accessInput');
+  const accessBtn = document.getElementById('accessBtn');
+  const accessError = document.getElementById('accessError');
+
+  async function checkAccess() {
+    const code = accessInput.value.trim();
+    if (!code) { accessError.textContent = 'Please enter a code.'; return; }
+    try {
+      const resp = await fetch('/api/access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        accessGate.style.display = 'none';
+        playerContent.style.display = '';
+        sessionStorage.setItem('music_access', code);
+        init();
+      } else {
+        accessError.textContent = 'Invalid access code.';
+      }
+    } catch (e) {
+      accessError.textContent = 'Error checking code.';
+    }
+  }
+
+  accessBtn.addEventListener('click', checkAccess);
+  accessInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkAccess(); });
+
+  // Auto-unlock if previously authenticated in this session
+  (async () => {
+    const saved = sessionStorage.getItem('music_access');
+    if (saved) {
+      accessInput.value = saved;
+      await checkAccess();
+    }
+  })();
+
   const audio = document.getElementById('audio1');
   const nowPlaying = document.getElementById('nowPlaying');
   const audioStatus = document.getElementById('audioStatus');
@@ -918,8 +973,7 @@ h1 {
     }
   });
 
-  // Load playlists on page load
-  init();
+  // init() is called after access code is verified
 </script>
 </body>
 </html>
