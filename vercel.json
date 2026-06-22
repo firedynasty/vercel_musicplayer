@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/parser.html", "destination": "/parser.html" },
+    { "source": "/parser", "destination": "/parser.html" },
+    { "source": "/(.*)", "destination": "/classical_player.html" }
+  ]
+}

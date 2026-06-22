@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Music Playlist Parser</title>
+  <style>
+@import url("https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz:300,400");
+
+html, body {
+  -webkit-font-smoothing: antialiased;
+  background-color: #111;
+  color: #C8C7C8;
+  font: 20px/24px "Yanone Kaffeesatz", HelveticaNeue, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 300;
+  margin: 0;
+  padding: 10px 0;
+}
+
+* { box-sizing: border-box; }
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+h1 {
+  text-align: center;
+  color: #667eea;
+  font-size: 2rem;
+  margin: 20px 0 5px;
+  font-weight: 400;
+}
+
+.subtitle {
+  text-align: center;
+  color: #888;
+  font-size: 1rem;
+  margin-bottom: 20px;
+}
+
+.section {
+  background: linear-gradient(135deg, rgba(38, 50, 56, 0.8), rgba(55, 71, 79, 0.8));
+  border: 1px solid rgba(144, 164, 174, 0.3);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 1rem 0;
+}
+
+.section h3 {
+  color: #667eea;
+  font-weight: 400;
+  font-size: 1.3rem;
+  margin: 0 0 12px;
+}
+
+label {
+  color: #90A4AE;
+  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 6px;
+}
+
+textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(144,164,174,0.4);
+  border-radius: 8px;
+  padding: 12px;
+  color: #E0E0E0;
+  font-family: monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+}
+
+input[type="text"] {
+  width: 100%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(144,164,174,0.4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #E0E0E0;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.btn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.btn {
+  background: linear-gradient(45deg, #455A64, #37474F);
+  color: #E0E0E0;
+  border: 1px solid rgba(144,164,174,0.4);
+  border-radius: 8px;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: linear-gradient(45deg, #546E7A, #455A64);
+  border-color: #667eea;
+}
+
+.btn.primary {
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  border-color: transparent;
+  color: white;
+}
+
+.btn.primary:hover {
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn.green {
+  background: linear-gradient(45deg, #43A047, #2E7D32);
+  border-color: transparent;
+  color: white;
+}
+
+.btn.green:hover {
+  box-shadow: 0 4px 12px rgba(67, 160, 71, 0.4);
+}
+
+.status {
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #8BC34A;
+  margin-top: 8px;
+  min-height: 1.2em;
+}
+
+.status.error { color: #f44336; }
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.preview-table th {
+  background: rgba(102, 126, 234, 0.2);
+  color: #667eea;
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+}
+
+.preview-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-family: monospace;
+}
+
+.preview-table tr:hover {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.preview-table .col-time { color: #667eea; white-space: nowrap; }
+.preview-table .col-title { color: #E0E0E0; }
+
+.format-info {
+  background: rgba(102, 126, 234, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+  font-size: 0.85rem;
+  color: #90A4AE;
+  line-height: 1.6;
+}
+
+.format-info code {
+  background: rgba(255,255,255,0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #FFC107;
+  font-size: 0.8rem;
+}
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Music Playlist Parser</h1>
+  <p class="subtitle">Paste a tracklist → get playlist .txt format</p>
+
+  <!-- Step 1: Name + URL -->
+  <div class="section">
+    <h3>1. Album Info</h3>
+    <label>Album name</label>
+    <input type="text" id="albumName" placeholder="Bach - Classical Music for Brain Power">
+    <label style="margin-top: 10px;">Dropbox URL (raw link)</label>
+    <input type="text" id="albumUrl" placeholder="https://www.dropbox.com/scl/fi/...?rlkey=...&raw=1">
+  </div>
+
+  <!-- Step 2: Tracklist input -->
+  <div class="section">
+    <h3>2. Paste Tracklist</h3>
+    <div class="format-info">
+      Accepts lines like:<br>
+      <code>00:00:00 Brandenburg Concerto No. 5</code><br>
+      <code>5:36 Orchestral Suite No. 2</code><br>
+      <code>1:08:51 Italian Concerto</code><br>
+      Timestamps can be <code>H:MM:SS</code>, <code>MM:SS</code>, or <code>M:SS</code>. Text after the timestamp becomes the label.
+    </div>
+    <textarea id="inputText" rows="12" placeholder="0:00 Track one&#10;5:36 Track two&#10;11:14 Track three"></textarea>
+    <div class="btn-row">
+      <button class="btn primary" onclick="parse()">Parse</button>
+      <button class="btn" onclick="clearAll()">Clear</button>
+    </div>
+    <div class="status" id="parseStatus"></div>
+  </div>
+
+  <!-- Step 3: Preview -->
+  <div class="section" id="previewSection" style="display:none;">
+    <h3>3. Preview</h3>
+    <table class="preview-table">
+      <thead><tr><th>#</th><th>Time</th><th>Label</th></tr></thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Step 4: Output -->
+  <div class="section" id="outputSection" style="display:none;">
+    <h3>4. Output — playlist .txt line</h3>
+    <textarea id="outputText" rows="5" readonly></textarea>
+    <div class="btn-row">
+      <button class="btn green" onclick="copyOutput()">Copy to Clipboard</button>
+    </div>
+    <div class="status" id="copyStatus"></div>
+  </div>
+</div>
+
+<script>
+  function parse() {
+    const name = document.getElementById('albumName').value.trim();
+    const url = document.getElementById('albumUrl').value.trim();
+    const input = document.getElementById('inputText').value;
+    const status = document.getElementById('parseStatus');
+
+    if (!url) {
+      status.textContent = 'Please enter a Dropbox URL.';
+      status.className = 'status error';
+      return;
+    }
+
+    const lines = input.split('\n').map(l => l.trim()).filter(l => l);
+    if (!lines.length) {
+      status.textContent = 'No tracklist lines found.';
+      status.className = 'status error';
+      return;
+    }
+
+    const tracks = [];
+    for (const line of lines) {
+      // Match leading timestamp: H:MM:SS, HH:MM:SS, MM:SS, M:SS
+      const m = line.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s*[,\-–—]?\s*(.*)$/);
+      if (m) {
+        const time = m[1];
+        // Clean label: strip leading dashes, collapse whitespace, replace spaces with underscores
+        let label = m[2]
+          .replace(/^[\-–—]+\s*/, '')
+          .replace(/,/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .replace(/ /g, '_');
+        tracks.push({ time, label });
+      }
+    }
+
+    if (!tracks.length) {
+      status.textContent = 'No valid timestamp lines found.';
+      status.className = 'status error';
+      return;
+    }
+
+    // Build preview table
+    const tbody = document.getElementById('previewBody');
+    tbody.innerHTML = '';
+    tracks.forEach((t, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${i + 1}</td><td class="col-time">${t.time}</td><td class="col-title">${t.label}</td>`;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('previewSection').style.display = '';
+
+    // Build output line
+    const timeParts = tracks.map(t => t.label ? `${t.time}(${t.label})` : t.time).join(',');
+    const albumName = name || deriveNameFromUrl(url);
+    const output = `${albumName},"${url},${timeParts}"`;
+
+    document.getElementById('outputText').value = output;
+    document.getElementById('outputSection').style.display = '';
+    status.textContent = `Parsed ${tracks.length} tracks.`;
+    status.className = 'status';
+  }
+
+  function deriveNameFromUrl(url) {
+    try {
+      const path = new URL(url).pathname;
+      let name = path.split('/').pop() || 'untitled';
+      name = name.split('?')[0];
+      if (name.includes('.')) name = name.substring(0, name.lastIndexOf('.'));
+      return name.replace(/[-_]/g, ' ').trim();
+    } catch {
+      return 'untitled';
+    }
+  }
+
+  function copyOutput() {
+    const text = document.getElementById('outputText').value;
+    const status = document.getElementById('copyStatus');
+    navigator.clipboard.writeText(text).then(() => {
+      status.textContent = 'Copied!';
+      status.className = 'status';
+    }).catch(() => {
+      // fallback
+      const ta = document.getElementById('outputText');
+      ta.select();
+      document.execCommand('copy');
+      status.textContent = 'Copied!';
+      status.className = 'status';
+    });
+  }
+
+  function clearAll() {
+    document.getElementById('albumName').value = '';
+    document.getElementById('albumUrl').value = '';
+    document.getElementById('inputText').value = '';
+    document.getElementById('outputText').value = '';
+    document.getElementById('previewSection').style.display = 'none';
+    document.getElementById('outputSection').style.display = 'none';
+    document.getElementById('parseStatus').textContent = '';
+    document.getElementById('copyStatus').textContent = '';
+  }
+
+  // Auto-parse on paste into tracklist textarea
+  document.getElementById('inputText').addEventListener('paste', () => {
+    setTimeout(parse, 50);
+  });
+</script>
+</body>
+</html>
