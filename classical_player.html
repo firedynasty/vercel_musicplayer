@@ -529,6 +529,7 @@ h1 {
   let tracklist = [];       // only track items (with seconds), no headers
   let allTrackItems = [];   // includes headers for display
   let lastHighlightedIndex = -1;
+  let currentBlobUrl = null;
 
   // Fetch and initialize from playlists.json
   async function init() {
@@ -579,13 +580,59 @@ h1 {
     tracklist = allTrackItems.filter(t => 'seconds' in t);
     lastHighlightedIndex = -1;
 
-    // Set audio source
-    audio.src = entry.url;
-    audio.load();
-    audio.play().catch(e => console.warn('Autoplay blocked:', e));
+    // Revoke previous blob URL
+    if (currentBlobUrl) {
+      URL.revokeObjectURL(currentBlobUrl);
+      currentBlobUrl = null;
+    }
+
     nowPlaying.textContent = 'Now Playing: ' + entry.name;
-    audioStatus.textContent = 'Loading...';
-    audioStatus.style.color = '#888';
+    audioStatus.textContent = 'Downloading...';
+    audioStatus.style.color = '#FFC107';
+
+    // Download audio as blob to avoid CORS issues (enables visualizer)
+    fetch(entry.url).then(resp => {
+      if (!resp.ok) throw new Error('Download failed');
+      const contentLength = resp.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength) : 0;
+      let loaded = 0;
+      const reader = resp.body.getReader();
+      const chunks = [];
+
+      function pump() {
+        return reader.read().then(({ done, value }) => {
+          if (done) return new Blob(chunks);
+          chunks.push(value);
+          loaded += value.length;
+          if (total) {
+            const pct = Math.round((loaded / total) * 100);
+            const mb = (loaded / 1048576).toFixed(1);
+            const totalMb = (total / 1048576).toFixed(1);
+            audioStatus.textContent = `Downloading... ${mb}/${totalMb} MB (${pct}%)`;
+          } else {
+            audioStatus.textContent = `Downloading... ${(loaded / 1048576).toFixed(1)} MB`;
+          }
+          return pump();
+        });
+      }
+
+      return pump();
+    }).then(blob => {
+      currentBlobUrl = URL.createObjectURL(blob);
+      audio.src = currentBlobUrl;
+      audio.load();
+      audio.play().catch(e => console.warn('Autoplay blocked:', e));
+      audioStatus.textContent = 'Ready';
+      audioStatus.style.color = '#8BC34A';
+    }).catch(e => {
+      console.error('Download error:', e);
+      // Fallback to direct URL
+      audio.src = entry.url;
+      audio.load();
+      audio.play().catch(e => console.warn('Autoplay blocked:', e));
+      audioStatus.textContent = 'Streaming (visualizer unavailable)';
+      audioStatus.style.color = '#FF9800';
+    });
     tracklistHeader.textContent = entry.name + (tracklist.length ? ' — Click a time to jump' : '');
 
     // Cancel any active loop
