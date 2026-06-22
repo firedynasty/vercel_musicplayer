@@ -590,8 +590,8 @@ h1 {
     audioStatus.textContent = 'Downloading...';
     audioStatus.style.color = '#FFC107';
 
-    // Download audio as blob to avoid CORS issues (enables visualizer)
-    fetch(entry.url).then(resp => {
+    // Download audio via proxy to avoid CORS issues (enables visualizer)
+    fetch('/api/proxy?url=' + encodeURIComponent(entry.url)).then(resp => {
       if (!resp.ok) throw new Error('Download failed');
       const contentLength = resp.headers.get('content-length');
       const total = contentLength ? parseInt(contentLength) : 0;
