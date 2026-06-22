@@ -1,0 +1,70 @@
+Visualizer Implementation Notes
+================================
+
+Problem: Dropbox audio URLs are cross-origin. The Web Audio API's
+createMediaElementSource() outputs zeroes when the audio element
+loads from a cross-origin URL (CORS restriction).
+
+Three approaches were tried:
+
+1. createMediaElementSource (direct)
+   - Works when audio src is same-origin (blob URL or local file)
+   - Fails silently on cross-origin Dropbox URLs (outputs zeroes)
+   - No user prompt needed
+
+2. Fetch as blob via server-side proxy (/api/proxy.js)
+   - Vercel serverless function fetches Dropbox URL server-side
+   - Returns audio bytes to client, client creates blob URL
+   - blob URL is same-origin so createMediaElementSource works
+   - Limitation: Vercel Hobby plan has 4.5MB response body limit
+   - Works great for individual mp3 tracks (< 4.5MB)
+   - Fails for large compilations (Bach 2hr = ~100MB+)
+
+3. getDisplayMedia (tab audio capture)
+   - navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+   - Captures the tab's audio output via createMediaStreamSource
+   - Works for ANY audio regardless of size or CORS
+   - Requires user prompt: must select tab and check "Share tab audio"
+   - Video track is immediately stopped (only need audio)
+   - Stream's onended handler cleans up when user stops sharing
+
+Final solution uses all three, auto-selecting the best one:
+
+Flow when album is selected:
+  1. Try /api/proxy first (fetch + blob)
+  2. If proxy succeeds (small file): play from blob URL
+     - isLocalFile = true
+     - Visualizer uses createMediaElementSource (no prompt)
+  3. If proxy fails (large file or error): fall back to direct Dropbox URL
+     - isLocalFile = false
+     - Status shows "use file drop or tab capture for visualizer"
+     - Visualizer button triggers getDisplayMedia (tab capture prompt)
+
+Local file drop/choose zone:
+  - User can drag & drop or click to select audio file from their computer
+  - Creates blob URL, isLocalFile = true
+  - Visualizer works via createMediaElementSource (no prompt)
+  - Useful for large files user has already downloaded
+
+Visualizer button logic:
+  if (isLocalFile) {
+    // blob or local file — createMediaElementSource, no prompt
+  } else {
+    // streaming from Dropbox — getDisplayMedia tab capture
+  }
+
+Key detail for createMediaElementSource:
+  - Can only be called ONCE per audio element (vizSourceConnected flag)
+  - Must connect to both analyser AND destination (otherwise no sound)
+  - source.connect(analyser); analyser.connect(context.destination);
+
+Key detail for getDisplayMedia:
+  - AudioContext and analyser are created fresh each time (cleaned up on stop)
+  - source.connect(analyser) only — don't connect to destination
+    (audio already plays from the tab, connecting would double it)
+
+For 3-hour audio files:
+  - Direct Dropbox streaming works fine for playback
+  - Visualizer via tab capture (getDisplayMedia) works regardless of file size
+  - Alternatively, if user has the file locally, drop it in the drop zone
+    and visualizer works directly without any prompts
