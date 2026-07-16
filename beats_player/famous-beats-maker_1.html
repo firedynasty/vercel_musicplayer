@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Famous Beats — Rhythm Machine</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600&family=Space+Mono&display=swap');
+
+  :root{
+    --ink:#15130f;
+    --panel:#1e1b16;
+    --panel-hi:#282420;
+    --brass:#c8973d;
+    --led-off: rgba(238,230,214,0.06);
+    --led-kick:#c8973d;
+    --led-snare:#b5432f;
+    --led-hat:#7fa695;
+    --led-tone:#c9b25e;
+    --parchment:#eee6d6;
+    --parchment-dim:#9c9284;
+    --line: rgba(238,230,214,0.09);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:radial-gradient(ellipse at 50% -10%, #292319 0%, var(--ink) 55%);
+    color:var(--parchment);font-family:'Source Sans 3', sans-serif;
+    min-height:100vh;padding:20px 12px 50px;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:560px;margin:0 auto;}
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);font-weight:600;margin-bottom:6px;}
+  h1{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(26px,7vw,34px);margin:0 0 6px;letter-spacing:-0.01em;}
+  .sub{color:var(--parchment-dim);font-size:13.5px;line-height:1.55;max-width:48ch;margin-bottom:20px;}
+
+  .control-row{
+    display:flex;gap:10px;align-items:stretch;margin-bottom:14px;
+  }
+  select#presetSelect{
+    flex:1;background:var(--panel);border:1px solid var(--line);color:var(--parchment);
+    font-family:'Source Sans 3',sans-serif;font-size:14.5px;font-weight:600;
+    padding:12px 10px;border-radius:10px;
+  }
+  .bpm-box{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:8px 14px;display:flex;align-items:center;gap:10px;min-width:118px;
+  }
+  .bpm-box button{
+    width:26px;height:26px;border-radius:50%;background:var(--panel-hi);
+    border:1px solid var(--line);color:var(--parchment);font-size:15px;cursor:pointer;flex-shrink:0;
+  }
+  .bpm-val{font-family:'Space Mono',monospace;font-size:16px;text-align:center;min-width:38px;}
+  .bpm-label{font-size:9px;color:var(--parchment-dim);text-transform:uppercase;letter-spacing:.08em;text-align:center;}
+
+  .preset-desc{
+    font-size:12.5px;color:var(--parchment-dim);line-height:1.5;
+    margin:0 0 18px;min-height:36px;border-left:2px solid var(--brass);
+    padding-left:10px;
+  }
+
+  .transport{display:flex;gap:10px;margin-bottom:22px;}
+  .btn-play{
+    flex:1;background:var(--brass);color:#1a1710;font-weight:700;font-size:15px;
+    padding:13px;border-radius:12px;border:none;cursor:pointer;letter-spacing:.02em;
+    box-shadow:0 4px 14px rgba(200,151,61,0.22);transition:transform .1s;
+  }
+  .btn-play:active{transform:scale(.97);}
+  .btn-play.playing{background:var(--panel-hi);color:var(--parchment);border:1px solid var(--brass);}
+  .btn-clear{
+    background:transparent;border:1px solid var(--line);color:var(--parchment-dim);
+    padding:13px 18px;border-radius:12px;font-size:14px;cursor:pointer;
+  }
+
+  .sequencer{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 10px;}
+  .track{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .track:last-child{margin-bottom:0;}
+  .track-label{
+    width:52px;flex-shrink:0;font-size:10.5px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--parchment-dim);
+  }
+  .steps{display:flex;gap:4px;flex:1;}
+  .group{display:flex;gap:4px;}
+  .step{
+    width:100%;aspect-ratio:1;border-radius:5px;background:var(--led-off);
+    border:1px solid rgba(238,230,214,0.05);cursor:pointer;transition:background .06s, box-shadow .06s;
+  }
+  .step.on.kick{background:var(--led-kick);box-shadow:0 0 6px rgba(200,151,61,0.5);}
+  .step.on.snare{background:var(--led-snare);box-shadow:0 0 6px rgba(181,67,47,0.5);}
+  .step.on.hat{background:var(--led-hat);box-shadow:0 0 6px rgba(127,166,149,0.5);}
+  .step.on.tone{background:var(--led-tone);box-shadow:0 0 6px rgba(201,178,94,0.5);}
+  .step.on.crash{background:#8a8f9c;box-shadow:0 0 8px rgba(138,143,156,0.6);}
+  .step.playhead{outline:2px solid var(--parchment);outline-offset:1px;}
+  .steps-row{display:flex;gap:8px;flex:1;}
+
+  .beat-groups{display:flex;gap:8px;flex:1;}
+  .beat-group{display:flex;gap:4px;flex:1;}
+
+  .foot-note{text-align:center;color:var(--parchment-dim);font-size:11.5px;margin-top:20px;line-height:1.6;opacity:.75;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Rhythm machine</div>
+  <h1>Famous Beats</h1>
+  <div class="sub">Pick an iconic rhythmic pattern, dial in the tempo, and loop it. Tap any cell to remix the pattern yourself — it's your beat maker underneath the presets.</div>
+
+  <div class="control-row">
+    <select id="presetSelect"></select>
+    <div class="bpm-box">
+      <button id="bpmDown">−</button>
+      <div>
+        <div class="bpm-val" id="bpmVal">120</div>
+        <div class="bpm-label">BPM</div>
+      </div>
+      <button id="bpmUp">+</button>
+    </div>
+  </div>
+
+  <p class="preset-desc" id="presetDesc"></p>
+
+  <div class="transport">
+    <button class="btn-play" id="playBtn">▶ Play</button>
+    <button class="btn-clear" id="clearBtn">Clear</button>
+  </div>
+
+  <div class="sequencer" id="sequencer"></div>
+
+  <div class="foot-note">Sounds are synthesized in the browser — no samples used.<br>Patterns represent the classic rhythmic feel of each style, not a reproduced recording.</div>
+</div>
+
+<script>
+(function(){
+  const STEPS = 16;
+  const TRACKS = ['kick','snare','hat','crash','tone'];
+  const TRACK_LABELS = {kick:'Kick', snare:'Snare', hat:'Hi-Hat', crash:'Gong', tone:'Tone'};
+
+  function pattern(steps){
+    const arr = new Array(STEPS).fill(0);
+    steps.forEach(s => arr[s] = 1);
+    return arr;
+  }
+
+  const presets = [
+    {
+      name: "Four-on-the-floor (house)",
+      bpm: 124,
+      desc: "Steady kick on every beat with off-beat hi-hats — the backbone of house and disco.",
+      kick: pattern([0,4,8,12]),
+      snare: pattern([4,12]),
+      hat: pattern([2,6,10,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Boom-bap (hip-hop)",
+      bpm: 92,
+      desc: "Kick up front, snare on 2 and 4, hi-hats filling the gaps — the classic '90s hip-hop feel.",
+      kick: pattern([0,10]),
+      snare: pattern([4,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: '"We Will Rock You" stomp',
+      bpm: 81,
+      desc: "Stomp-stomp-clap, repeated — two kicks then a snare hit, in groups of four steps.",
+      kick: pattern([0,1,4,5,8,9,12,13]),
+      snare: pattern([2,6,10,14]),
+      hat: pattern([]),
+      tone: pattern([])
+    },
+    {
+      name: "Son clave (3-2)",
+      bpm: 100,
+      desc: "The clave pattern underpinning Afro-Cuban and Bo Diddley-style rhythms — three hits, then two.",
+      kick: pattern([0,3,6,10,12]),
+      snare: pattern([]),
+      hat: pattern([2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Habanera / tresillo",
+      bpm: 96,
+      desc: "Long-short-short-long grouping — the tresillo feel behind habanera, tango, and countless Latin styles.",
+      kick: pattern([0,3,6,8,11,14]),
+      snare: pattern([]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Funk break (syncopated)",
+      bpm: 106,
+      desc: "Syncopated kick, ghost-note snares, and busy hats — a break-beat style pattern.",
+      kick: pattern([0,6,10]),
+      snare: pattern([4,9,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Boom-bap No. 2 (head-nod)",
+      bpm: 88,
+      desc: "A laid-back variation — kick on the '1' and the 'and' of 2, snare on 2 and 4, steady 8th-note hats. Good pocket for a relaxed flow.",
+      kick: pattern([0,6,8]),
+      snare: pattern([4,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Boom-bap (clave shift)",
+      bpm: 90,
+      desc: "Kick follows a son-clave-style 3-then-2 shape — busier and syncopated in the first half of the bar, then settling into a straighter pattern for the second half. Snare and hats stay in a standard boom-bap backbeat, so you get that same 'the beat changes underneath you' feeling clave has, inside one loop.",
+      kick: pattern([0,3,6,8,10]),
+      snare: pattern([4,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Trap (hi-hat rolls)",
+      bpm: 140,
+      desc: "Half-time snare feel with fast rolling hi-hats — the modern trap template. BPM reads double-time, so it feels like 70 for rapping.",
+      kick: pattern([0,3,8,10,14]),
+      snare: pattern([8]),
+      hat: pattern([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]),
+      tone: pattern([])
+    },
+    {
+      name: "Drill (sliding 808 feel)",
+      bpm: 142,
+      desc: "Syncopated, triplet-leaning kicks with a sparse snare on the back half — the UK/Chicago drill pocket. Also reads half-time.",
+      kick: pattern([0,3,7,10,13]),
+      snare: pattern([8]),
+      hat: pattern([0,3,6,8,11,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Old-school breakbeat",
+      bpm: 96,
+      desc: "A classic sampled-break feel — syncopated kick, crisp snare on 2 and 4, straight 8th hats. The foundation of golden-era boom bap.",
+      kick: pattern([0,5,10]),
+      snare: pattern([4,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Lo-fi chill hip-hop",
+      bpm: 82,
+      desc: "Loose, swung feel with a soft kick, brushed snare on 2 and 4, and sparse hats — good for a slower, conversational flow.",
+      kick: pattern([0,7,10]),
+      snare: pattern([4,12]),
+      hat: pattern([0,4,8,12]),
+      tone: pattern([])
+    },
+    {
+      name: "Lo-fi (four-and-pause hats)",
+      bpm: 80,
+      desc: "Hi-hats fire four quick beeps, then rest, then four more — a breathing, call-and-response hat pattern over a soft kick/snare.",
+      kick: pattern([0,10]),
+      snare: pattern([4,12]),
+      hat: pattern([0,1,2,3,8,9,10,11]),
+      tone: pattern([])
+    },
+    {
+      name: "Lo-fi dusty (sparse & swung)",
+      bpm: 76,
+      desc: "Minimal and unhurried — just kick, snare, and a light hat accent, leaving lots of open space for vocals.",
+      kick: pattern([0,9]),
+      snare: pattern([4,12]),
+      hat: pattern([2,6,10,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Rock-flip (verse)",
+      bpm: 120,
+      desc: "Straight 8th-note hi-hats, kick on beats 1 and 3, snare also on 1 and 3 — the 'flipped' verse feel before it resolves to a normal backbeat in the chorus.",
+      kick: pattern([0,8]),
+      snare: pattern([0,8]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Rock-flip (chorus)",
+      bpm: 120,
+      desc: "Same 8th-note hi-hat and kick as the verse, but the snare moves to the standard 2 & 4 backbeat — the payoff shift into the chorus.",
+      kick: pattern([0,8]),
+      snare: pattern([4,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: '"Billie Jean"-style groove',
+      bpm: 117,
+      desc: "An early-'80s disco-pop pocket — kick on the 1 and the '&' of 2, snare locked on 2 & 4, steady 8th-note hats. Captures the general feel, not a transcription of the actual recording.",
+      kick: pattern([0,6]),
+      snare: pattern([4,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([])
+    },
+    {
+      name: "Lo-fi jazzy (brushed & syncopated)",
+      bpm: 84,
+      desc: "A loose, jazz-inflected pocket — kick lands off the beat, snare stays put, hats swing in triplet-ish pairs.",
+      kick: pattern([0,6,11]),
+      snare: pattern([4,12]),
+      hat: pattern([0,3,6,9,12,15]),
+      tone: pattern([])
+    },
+    {
+      name: '"Air on the G String" (rock drums)',
+      bpm: 66,
+      desc: "A rock-drum treatment of Bach's famously steady, walking-bass pulse — kick and a 'doot doot doot doot' quarter-note tone line hold down the beat, snare adds a rock backbeat, hi-hats fill in 8ths. Just the pulse, not the actual melody.",
+      kick: pattern([0,4,8,12]),
+      snare: pattern([4,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([0,4,8,12])
+    },
+    {
+      name: "Beethoven 5th motif rhythm",
+      bpm: 108,
+      desc: "Short-short-short-LONG — just the rhythmic shape of the famous opening motto, on a single tone.",
+      kick: pattern([]),
+      snare: pattern([]),
+      hat: pattern([]),
+      tone: pattern([0,2,4,8])
+    },
+    {
+      name: '"Winter" (Vivaldi, modern drums)',
+      bpm: 116,
+      desc: "A modern-drum take on Vivaldi's Winter — steady 'bomp bomp bomp bomp' kick quarter-notes and sparse hats for the first half, then the hats roll into a fast, shivering 16th-note texture and the snare crashes in for the second half as it 'gets more serious.'",
+      kick: pattern([0,4,8,12]),
+      snare: pattern([12]),
+      hat: pattern([2,6,8,9,10,11,12,13,14,15]),
+      tone: pattern([])
+    },
+    {
+      name: '"Smooth Criminal"-style groove',
+      bpm: 118,
+      desc: "Jonathan Moffett's driving pocket for Michael Jackson's 'Smooth Criminal' — syncopated kick, tight snare backbeat, fast 16th-note hats, and a steady 8th-note 'da da dun dun da da dun dun' bass-riff pulse on the tone track. Captures the drive, not a transcription of the actual recording.",
+      kick: pattern([0,6,8,14]),
+      snare: pattern([4,12]),
+      hat: pattern([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]),
+      tone: pattern([0,2,4,6,8,10,12,14])
+    },
+    {
+      name: '"Ride of the Valkyries" (Wagner) — the gallop enters',
+      bpm: 108,
+      desc: "A sparse opening build — echoing the few stanzas before the famous motif arrives — then the galloping 'ba ba ba BUM, ba ba ba BUM' kicks in: hi-hats gallop in fast 16ths, kick/snare land the accented BUM, crash marks the full entrance.",
+      kick: pattern([0,4,11,15]),
+      snare: pattern([11,15]),
+      hat: pattern([8,9,10,12,13,14]),
+      crash: pattern([15]),
+      tone: pattern([0,4])
+    },
+    {
+      name: '"Ride of the Valkyries" (Wagner) — the entrance explodes',
+      bpm: 112,
+      desc: "Captures the shift: a sparse, atmospheric first half with almost nothing playing, then a crash marks the turn and the drums explode in — building kick/snare hits filling out the second half of the bar, echoing that famous entrance.",
+      kick: pattern([8,10,12,13,14,15]),
+      snare: pattern([9,11,13,15]),
+      hat: pattern([]),
+      crash: pattern([8]),
+      tone: pattern([0])
+    },
+    {
+      name: '"Another One Bites the Dust" (Queen)-style groove',
+      bpm: 110,
+      desc: "The iconic bass-riff rhythm — 'da da dun dun dun, da da dun dun dun' on the tone track, over a steady kick pulse, backbeat snare, and straight 8th-note hats.",
+      kick: pattern([0,4,8,12]),
+      snare: pattern([4,12]),
+      hat: pattern([0,2,4,6,8,10,12,14]),
+      tone: pattern([0,2,4,5,6,8,10,12,13,14])
+    },
+    {
+      name: '"Also Sprach Zarathustra" (Strauss) opening',
+      bpm: 60,
+      desc: "The famous sunrise fanfare's anticipation build — a long sustained low tone, then three ascending notes spaced further apart as tension builds, resolving into a massive hit with a rolling timpani tail. Captures the rhythmic shape of the build and payoff, not the actual melody.",
+      kick: pattern([12,13,14,15]),
+      snare: pattern([]),
+      hat: pattern([]),
+      crash: pattern([12]),
+      tone: pattern([0,6,8,10])
+    },
+    {
+      name: '"Boléro" (Ravel) walking snare',
+      bpm: 72,
+      desc: "The hypnotic snare ostinato that repeats, unchanged, underneath the entire piece — a steady walking pulse anchored by the kick, building tension through repetition rather than rhythmic variation. Approximated for this 4/4 grid, not an exact transcription of the original 3/4 pattern.",
+      kick: pattern([0,8]),
+      snare: pattern([0,2,4,6,8,10,12,14]),
+      hat: pattern([]),
+      tone: pattern([])
+    },
+    {
+      name: '"Toccata and Fugue in D minor" (Bach)',
+      bpm: 76,
+      desc: "The dramatic opening flourish, rhythm-only — a rapid descending run followed by a held, weighty landing note, then space before it happens again.",
+      kick: pattern([]),
+      snare: pattern([]),
+      hat: pattern([]),
+      tone: pattern([0,1,2,3,4,5,8])
+    },
+  ];
+
+  let grid = {};
+  let bpm = 120;
+  let playing = false;
+  let audioCtx = null;
+  let currentStep = 0;
+  let displayStep = 0;
+  let nextNoteTime = 0;
+  let schedulerTimer = null;
+  const scheduleAheadTime = 0.15;
+  const lookahead = 25;
+  let stepDuration = 0.125; // seconds, set from bpm
+
+  const presetSelect = document.getElementById('presetSelect');
+  const presetDesc = document.getElementById('presetDesc');
+  const bpmVal = document.getElementById('bpmVal');
+  const sequencerEl = document.getElementById('sequencer');
+  const playBtn = document.getElementById('playBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  presets.forEach((p, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = p.name;
+    presetSelect.appendChild(opt);
+  });
+
+  function loadPreset(i){
+    const p = presets[i];
+    grid = {
+      kick: [...p.kick], snare: [...p.snare], hat: [...p.hat], tone: [...p.tone],
+      crash: p.crash ? [...p.crash] : new Array(STEPS).fill(0)
+    };
+    bpm = p.bpm;
+    bpmVal.textContent = bpm;
+    presetDesc.textContent = p.desc;
+    renderGrid();
+  }
+
+  function renderGrid(){
+    sequencerEl.innerHTML = '';
+    TRACKS.forEach(track => {
+      const row = document.createElement('div');
+      row.className = 'track';
+      const label = document.createElement('div');
+      label.className = 'track-label';
+      label.textContent = TRACK_LABELS[track];
+      row.appendChild(label);
+
+      const groupsWrap = document.createElement('div');
+      groupsWrap.className = 'beat-groups';
+      for(let g=0; g<4; g++){
+        const group = document.createElement('div');
+        group.className = 'beat-group';
+        for(let s=0; s<4; s++){
+          const stepIdx = g*4+s;
+          const cell = document.createElement('div');
+          cell.className = 'step' + (grid[track][stepIdx] ? ' on ' + track : '');
+          cell.dataset.track = track;
+          cell.dataset.step = stepIdx;
+          cell.addEventListener('click', () => {
+            grid[track][stepIdx] = grid[track][stepIdx] ? 0 : 1;
+            renderGrid();
+          });
+          group.appendChild(cell);
+        }
+        groupsWrap.appendChild(group);
+      }
+      row.appendChild(groupsWrap);
+      sequencerEl.appendChild(row);
+    });
+    markPlayhead();
+  }
+
+  function markPlayhead(){
+    document.querySelectorAll('.step').forEach(el => {
+      el.classList.toggle('playhead', playing && +el.dataset.step === displayStep);
+    });
+  }
+
+  presetSelect.addEventListener('change', () => {
+    stop();
+    loadPreset(+presetSelect.value);
+    start();
+  });
+
+  document.getElementById('bpmUp').addEventListener('click', () => {
+    bpm = Math.min(220, bpm+2); bpmVal.textContent = bpm;
+  });
+  document.getElementById('bpmDown').addEventListener('click', () => {
+    bpm = Math.max(40, bpm-2); bpmVal.textContent = bpm;
+  });
+
+  clearBtn.addEventListener('click', () => {
+    TRACKS.forEach(t => grid[t] = new Array(STEPS).fill(0));
+    renderGrid();
+  });
+
+  function ensureAudio(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playKick(time){
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(45, time+0.12);
+    gain.gain.setValueAtTime(0.9, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time+0.22);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(time); osc.stop(time+0.25);
+  }
+  function playSnare(time){
+    const bufferSize = audioCtx.sampleRate * 0.15;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 1200;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.55, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time+0.15);
+    noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+    noise.start(time); noise.stop(time+0.15);
+
+    const osc = audioCtx.createOscillator();
+    const oGain = audioCtx.createGain();
+    osc.frequency.value = 190;
+    oGain.gain.setValueAtTime(0.3, time);
+    oGain.gain.exponentialRampToValueAtTime(0.001, time+0.1);
+    osc.connect(oGain); oGain.connect(audioCtx.destination);
+    osc.start(time); osc.stop(time+0.1);
+  }
+  function playHat(time){
+    const bufferSize = audioCtx.sampleRate * 0.05;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1);
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 7000;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.28, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time+0.04);
+    noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+    noise.start(time); noise.stop(time+0.05);
+  }
+  function playCrash(time){
+    // metallic, ringing "gong" hit: layered detuned tones + long noise wash
+    const freqs = [180, 243, 310, 410, 560];
+    freqs.forEach((f, idx) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = f * (1 + idx*0.003);
+      gain.gain.setValueAtTime(0.16 / (idx+1), time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.9);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(time); osc.stop(time + 0.9);
+    });
+    const bufferSize = audioCtx.sampleRate * 0.9;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1);
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass'; filter.frequency.value = 3500; filter.Q.value = 0.6;
+    const nGain = audioCtx.createGain();
+    nGain.gain.setValueAtTime(0.22, time);
+    nGain.gain.exponentialRampToValueAtTime(0.001, time + 0.85);
+    noise.connect(filter); filter.connect(nGain); nGain.connect(audioCtx.destination);
+    noise.start(time); noise.stop(time + 0.85);
+  }
+  function playTone(time){
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = 330;
+    gain.gain.setValueAtTime(0.4, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time+0.18);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(time); osc.stop(time+0.2);
+  }
+
+  function scheduleStep(stepIdx, time){
+    if(grid.kick[stepIdx]) playKick(time);
+    if(grid.snare[stepIdx]) playSnare(time);
+    if(grid.hat[stepIdx]) playHat(time);
+    if(grid.crash[stepIdx]) playCrash(time);
+    if(grid.tone[stepIdx]) playTone(time);
+    const delay = Math.max(0, (time - audioCtx.currentTime) * 1000);
+    setTimeout(() => { displayStep = stepIdx; markPlayhead(); }, delay);
+  }
+
+  function scheduler(){
+    stepDuration = (60 / bpm) / 4; // 16th notes
+    while(nextNoteTime < audioCtx.currentTime + scheduleAheadTime){
+      scheduleStep(currentStep, nextNoteTime);
+      nextNoteTime += stepDuration;
+      currentStep = (currentStep + 1) % STEPS;
+    }
+    schedulerTimer = setTimeout(scheduler, lookahead);
+  }
+
+  function start(){
+    if(playing) return;
+    ensureAudio();
+    playing = true;
+    currentStep = 0;
+    displayStep = 0;
+    nextNoteTime = audioCtx.currentTime + 0.05;
+    playBtn.textContent = '⏸ Stop';
+    playBtn.classList.add('playing');
+    scheduler();
+  }
+  function stop(){
+    playing = false;
+    if(schedulerTimer) clearTimeout(schedulerTimer);
+    playBtn.textContent = '▶ Play';
+    playBtn.classList.remove('playing');
+    markPlayhead();
+  }
+  playBtn.addEventListener('click', () => { playing ? stop() : start(); });
+
+  document.addEventListener('keydown', (e) => {
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      playing ? stop() : start();
+    } else if(e.key === 'ArrowRight'){
+      e.preventDefault();
+      const next = Math.min(presets.length - 1, +presetSelect.value + 1);
+      presetSelect.value = next;
+      presetSelect.dispatchEvent(new Event('change'));
+    } else if(e.key === 'ArrowLeft'){
+      e.preventDefault();
+      const prev = Math.max(0, +presetSelect.value - 1);
+      presetSelect.value = prev;
+      presetSelect.dispatchEvent(new Event('change'));
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      const up = Math.max(0, +presetSelect.value - 1);
+      presetSelect.value = up;
+      presetSelect.dispatchEvent(new Event('change'));
+    } else if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      const down = Math.min(presets.length - 1, +presetSelect.value + 1);
+      presetSelect.value = down;
+      presetSelect.dispatchEvent(new Event('change'));
+    } else if(e.key === ']'){
+      e.preventDefault();
+      bpm = Math.min(220, bpm+2); bpmVal.textContent = bpm;
+    } else if(e.key === '['){
+      e.preventDefault();
+      bpm = Math.max(40, bpm-2); bpmVal.textContent = bpm;
+    }
+  });
+
+  loadPreset(0);
+})();
+</script>
+</body>
+</html>
